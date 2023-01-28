@@ -7,41 +7,6 @@ open! Lwt.Syntax
 (* Cookies *)
 type t = Cookie.cookie list
 
-let gradescope_config_dir = Filename.concat (Sys.getenv_exn "HOME") ".gradescope-submit"
-let gradescope_config_file = Filename.concat gradescope_config_dir "signed_token"
-
-let read_cookie () =
-  if Sys_unix.file_exists_exn gradescope_config_file
-  then Some (In_channel.read_all gradescope_config_file)
-  else None
-;;
-
-let save_cookie c =
-  if not (Sys_unix.file_exists_exn gradescope_config_dir)
-  then Core_unix.mkdir gradescope_config_dir;
-  Out_channel.write_all gradescope_config_file ~data:c
-;;
-
-(* Helper function to hide password on terminal *)
-let get_password () =
-  let open Core_unix.Terminal_io in
-  let old_tc = tcgetattr Core_unix.stdin in
-  let new_tc = { old_tc with c_echo = false } in
-  tcsetattr new_tc Core_unix.stdin ~mode:TCSANOW;
-  let password = In_channel.input_line_exn In_channel.stdin in
-  tcsetattr old_tc Core_unix.stdin ~mode:TCSANOW;
-  printf "\n%!";
-  password
-;;
-
-let prompt_login () =
-  printf "Enter Gradescope email: %!";
-  let email = In_channel.input_line_exn In_channel.stdin in
-  printf "Enter Gradescope password: %!";
-  let password = get_password () in
-  email, password
-;;
-
 let fix_cookie_headers headers =
   Header.to_list headers
   |> List.map ~f:(fun (k, v) -> String.lowercase k, v)
@@ -71,9 +36,7 @@ let req_with_cookies
       ?headers:
         (Option.map
            ~f:(fun headers ->
-             Header.of_list
-               (("Cookie", snd (Cookie.Cookie_hdr.serialize cookies))
-               :: Header.to_list headers))
+             Header.of_list (Cookie.Cookie_hdr.serialize cookies :: Header.to_list headers))
            headers)
       url
   in
@@ -90,39 +53,41 @@ let signed_token c =
   |> Option.map ~f:(fun (_, v) -> v)
 ;;
 
-let login () =
-  let email, password = prompt_login () in
-  let* cookies, _, body =
-    req_with_cookies
-      ~method_:Client.get
-      ~cookies:[]
-      (Uri.of_string "https://www.gradescope.com/login")
+let login ~email ~password =
+  let lwt =
+    let* cookies, _, body =
+      req_with_cookies
+        ~method_:Client.get
+        ~cookies:[]
+        (Uri.of_string "https://www.gradescope.com/login")
+    in
+    let* body_str = Body.to_string body in
+    let open Soup in
+    let document = parse body_str in
+    let csrf_token = document $ "input[name=authenticity_token]" |> R.attribute "value" in
+    let req =
+      Body.of_form
+        [ "authenticity_token", [ csrf_token ]
+        ; "session[email]", [ email ]
+        ; "session[password]", [ password ]
+        ; "session[remember_me]", [ "1" ]
+        ; "commit", [ "Log In" ]
+        ; "session[remember_me_sso]", [ "0" ]
+        ]
+    in
+    let* cookies, _, _ =
+      req_with_cookies
+        ~method_:(Client.post ~body:req ?chunked:None)
+        ~cookies
+        ~headers:
+          (Header.of_list
+             [ "Host", "www.gradescope.com"; "Referer", "https://www.gradescope.com" ])
+        (Uri.of_string "https://www.gradescope.com/login")
+    in
+    let signed_cookie = signed_token cookies in
+    Option.map signed_cookie ~f:(fun _ -> cookies) |> Lwt.return
   in
-  let* body_str = Body.to_string body in
-  let open Soup in
-  let document = parse body_str in
-  let csrf_token = document $ "input[name=authenticity_token]" |> R.attribute "value" in
-  let req =
-    Body.of_form
-      [ "authenticity_token", [ csrf_token ]
-      ; "session[email]", [ email ]
-      ; "session[password]", [ password ]
-      ; "session[remember_me]", [ "1" ]
-      ; "commit", [ "Log In" ]
-      ; "session[remember_me_sso]", [ "0" ]
-      ]
-  in
-  let* cookies, _, _ =
-    req_with_cookies
-      ~method_:(Client.post ~body:req ?chunked:None)
-      ~cookies
-      ~headers:
-        (Header.of_list
-           [ "Host", "www.gradescope.com"; "Referer", "https://www.gradescope.com" ])
-      (Uri.of_string "https://www.gradescope.com/login")
-  in
-  let signed_cookie = signed_token cookies in
-  Option.map signed_cookie ~f:(fun _ -> cookies) |> Lwt.return
+  Lwt_main.run lwt
 ;;
 
 let authenticated cookies =
@@ -134,8 +99,7 @@ let authenticated cookies =
       (Uri.of_string "https://www.gradescope.com/login")
   in
   let code = Response.status resp |> Code.code_of_status in
-  assert (code = 401);
-  cookies |> Lwt.return
+  if code = 401 then Some cookies |> Lwt.return else Lwt.return_none
 ;;
 
 let init_cookies cookies =
@@ -151,21 +115,7 @@ let init_cookies cookies =
   Lwt_main.run lwt
 ;;
 
-let rec initialize_gradescope () =
-  let cookies =
-    match read_cookie () with
-    | Some tok -> [ "signed_token", tok ]
-    | None ->
-      (match Lwt_main.run (login ()) with
-       | Some c ->
-         signed_token c |> Option.iter ~f:save_cookie;
-         c
-       | None ->
-         printf "Incorrect username or password\n";
-         initialize_gradescope ())
-  in
-  init_cookies cookies
-;;
+let initialize_gradescope ~token = init_cookies [ "signed_token", token ]
 
 let get_git_repos ~csrf t =
   let rec fetch_loop page =
@@ -271,4 +221,10 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
        | _ -> (cookies, None) |> Lwt.return)
   in
   Lwt_main.run lwt
+;;
+
+let token t =
+  match signed_token t with
+  | Some t -> t
+  | None -> failwith "No token in client"
 ;;

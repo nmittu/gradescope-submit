@@ -1,0 +1,3 @@
+(library
+ (name terminal_utils)
+ (libraries core core_unix))
