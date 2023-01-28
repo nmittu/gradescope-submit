@@ -1,0 +1,4 @@
+(executable
+ (public_name gradescope_submit)
+ (name main)
+ (libraries gradescope github core))
