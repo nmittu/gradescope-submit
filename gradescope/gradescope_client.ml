@@ -7,6 +7,7 @@ open! Lwt.Syntax
 (* Cookies *)
 type t = Cookie.cookie list
 
+(* Cohttp doesn't recognize cookies when the header name is capitalized :/ *)
 let fix_cookie_headers headers =
   Header.to_list headers
   |> List.map ~f:(fun (k, v) -> String.lowercase k, v)
@@ -21,6 +22,7 @@ let merge_cookies cookies ~new_cookies =
     cookies
 ;;
 
+(* make a request while keeping track of cookies *)
 let req_with_cookies
   ~(method_ :
      ?ctx:Cohttp_lwt_unix.Net.ctx
@@ -102,6 +104,7 @@ let authenticated cookies =
   if code = 401 then Some cookies |> Lwt.return else Lwt.return_none
 ;;
 
+(* Initialize cookies before making any requests *)
 let init_cookies cookies =
   let lwt =
     let* cookies, _, _ =
@@ -142,6 +145,7 @@ let get_git_repos ~csrf t =
            r |> member "full_name" |> to_string, r |> member "id" |> to_int)
     in
     let uid = json |> member "uid" |> to_string in
+    (* If this page is full, get the next *)
     if List.length res = 100
     then
       let* () = Lwt_io.printf "." in
@@ -157,6 +161,7 @@ let get_git_repos ~csrf t =
 
 let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
   let lwt =
+    (* Get CSRF token from here *)
     let url = sprintf "https://www.gradescope.com/courses/%d" config.course_id in
     let* cookies, _, body =
       req_with_cookies
@@ -211,8 +216,9 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
       let open Yojson.Basic.Util in
       let error = json |> member "error" in
       let success = json |> member "success" |> to_bool_option in
+      (* Check for no errors and success true *)
       (match error, success with
-       | `Null, Some _ ->
+       | `Null, Some true ->
          ( cookies
          , Some
              (json |> member "url" |> to_string |> sprintf "https://www.gradescope.com%s")
