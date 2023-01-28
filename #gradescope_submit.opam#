@@ -14,11 +14,13 @@ depends: [
   "dune" {>= "3.6"}
   "core"
   "core_unix"
+  "core_unix.sys_unix"
   "cohttp"
   "cohttp-lwt-unix"
   "lambdasoup"
   "toml"
   "yojson"
+  "str"
   "odoc" {with-doc}
 ]
 build: [

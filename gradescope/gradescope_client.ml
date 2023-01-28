@@ -24,22 +24,15 @@ let merge_cookies cookies ~new_cookies =
 
 (* make a request while keeping track of cookies *)
 let req_with_cookies
-  ~(method_ :
-     ?ctx:Cohttp_lwt_unix.Net.ctx
-     -> ?headers:Header.t
-     -> Uri.t
-     -> (Response.t * Cohttp_lwt.Body.t) Lwt.t)
+  ~(method_ : ?ctx:Net.ctx -> ?headers:Header.t -> Uri.t -> (Response.t * Body.t) Lwt.t)
   ?(headers : Header.t option)
   ~cookies
   url
   =
+  let header_lst = headers |> Option.map ~f:Header.to_list |> Option.value ~default:[] in
   let+ resp, body =
     method_
-      ?headers:
-        (Option.map
-           ~f:(fun headers ->
-             Header.of_list (Cookie.Cookie_hdr.serialize cookies :: Header.to_list headers))
-           headers)
+      ~headers:(Header.of_list (Cookie.Cookie_hdr.serialize cookies :: header_lst))
       url
   in
   let headers = fix_cookie_headers (Response.headers resp) in
@@ -95,9 +88,9 @@ let login ~email ~password =
 let authenticated cookies =
   let* cookies, resp, _ =
     req_with_cookies
-      ~method_:Cohttp_lwt_unix.Client.get
+      ~method_:Client.get
       ~cookies
-      ~headers:(Cohttp.Header.of_list [ "Accept", "application/json" ])
+      ~headers:(Header.of_list [ "Accept", "application/json" ])
       (Uri.of_string "https://www.gradescope.com/login")
   in
   let code = Response.status resp |> Code.code_of_status in
@@ -109,7 +102,7 @@ let init_cookies cookies =
   let lwt =
     let* cookies, _, _ =
       req_with_cookies
-        ~method_:Cohttp_lwt_unix.Client.get
+        ~method_:Client.get
         ~cookies
         (Uri.of_string "https://www.gradescope.com")
     in
@@ -130,21 +123,24 @@ let get_git_repos ~csrf t =
     let* cookies, _, body =
       req_with_cookies
         ~cookies:t
-        ~method_:Cohttp_lwt_unix.Client.get
-        ~headers:(Cohttp.Header.of_list [ "X-CSRF-Token", csrf ])
+        ~method_:Client.get
+        ~headers:(Header.of_list [ "X-CSRF-Token", csrf ])
         (Uri.of_string url)
     in
-    let* body_str = Cohttp_lwt.Body.to_string body in
+    let* body_str = Body.to_string body in
     let json = Yojson.Basic.from_string body_str in
     let open Yojson.Basic.Util in
     let res =
       json
       |> member "repositories"
-      |> to_list
-      |> List.map ~f:(fun r ->
-           r |> member "full_name" |> to_string, r |> member "id" |> to_int)
+      |> to_option to_list
+      |> Option.map ~f:(fun l ->
+           l
+           |> List.map ~f:(fun r ->
+                r |> member "full_name" |> to_string, r |> member "id" |> to_int))
+      |> Option.value ~default:[]
     in
-    let uid = json |> member "uid" |> to_string in
+    let uid = json |> member "uid" |> to_string_option |> Option.value ~default:"" in
     (* If this page is full, get the next *)
     if List.length res = 100
     then
@@ -169,10 +165,10 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
         ~headers:
           (Header.of_list
              [ "Host", "www.gradescope.com"; "Referer", "https://www.gradescope.com" ])
-        ~method_:Cohttp_lwt_unix.Client.get
+        ~method_:Client.get
         (Uri.of_string url)
     in
-    let* body_str = Cohttp_lwt.Body.to_string body in
+    let* body_str = Body.to_string body in
     let open Soup in
     let document = parse body_str in
     let csrf = document $ "meta[name=csrf-token]" |> R.attribute "content" in
@@ -185,7 +181,7 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
     | None -> (cookies, None) |> Lwt.return
     | Some git_id ->
       let req_body =
-        Cohttp_lwt.Body.of_form
+        Body.of_form
           [ "authenticity_token", [ csrf ]
           ; "submission[method]", [ "github" ]
           ; "submission[repository]", [ Int.to_string git_id ]
@@ -204,14 +200,14 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
           ~cookies
           ~method_:(Client.post ~body:req_body ?chunked:None)
           ~headers:
-            (Cohttp.Header.of_list
+            (Header.of_list
                [ "Accept", "application/json"
                ; "Host", "www.gradescope.com"
                ; "Referer", submit_uri
                ])
           (Uri.of_string submit_uri)
       in
-      let* body_str = Cohttp_lwt.Body.to_string body in
+      let* body_str = Body.to_string body in
       let json = Yojson.Basic.from_string body_str in
       let open Yojson.Basic.Util in
       let error = json |> member "error" in

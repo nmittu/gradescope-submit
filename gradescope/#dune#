@@ -1,0 +1,12 @@
+(library
+ (name gradescope)
+ (libraries
+  core
+  core_unix
+  core_unix.sys_unix
+  cohttp
+  cohttp-lwt-unix
+  lambdasoup
+  github
+  toml
+  yojson))

@@ -5,22 +5,22 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github nmittu/gradescope-submit))
 
-(authors "Author Name")
+(authors "Nikhil Mittu")
 
-(maintainers "Maintainer Name")
+(maintainers "Nikhil Mittu")
 
-(license LICENSE)
+(license MIT)
 
-(documentation https://url/to/documentation)
+(documentation https://github.com/nmittu/gradescope-submit)
 
 (package
  (name gradescope_submit)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
+ (synopsis "A small script to submit to Gradescope via GitHub")
+ (description "Submits the current git repository to Gradescope")
+ (depends ocaml dune core core_unix cohttp cohttp-lwt-unix lambdasoup toml yojson)
  (tags
-  (topics "to describe" your project)))
+  (topics git gradescope https api)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
