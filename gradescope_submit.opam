@@ -2,7 +2,7 @@
 opam-version: "2.0"
 synopsis: "A small script to submit to Gradescope via GitHub"
 description: "Submits the current git repository to Gradescope"
-maintainer: ["Nikhil Mittu"]
+maintainer: ["nick@mittudev.com"]
 authors: ["Nikhil Mittu"]
 license: "MIT"
 tags: ["topics" "git" "gradescope" "https" "api"]
@@ -10,15 +10,15 @@ homepage: "https://github.com/nmittu/gradescope-submit"
 doc: "https://github.com/nmittu/gradescope-submit"
 bug-reports: "https://github.com/nmittu/gradescope-submit/issues"
 depends: [
-  "ocaml"
+  "ocaml" {>= "4.12"}
   "dune" {>= "3.6"}
-  "core"
-  "core_unix"
-  "cohttp"
-  "cohttp-lwt-unix"
-  "lambdasoup"
-  "toml"
-  "yojson"
+  "core" {>= "v0.15.1"}
+  "core_unix" {>= "v0.15.2"}
+  "cohttp" {>= "5.0.0"}
+  "cohttp-lwt-unix" {>= "5.0.0"}
+  "lambdasoup" {>= "0.7.3"}
+  "toml" {>= "7.1.0"}
+  "yojson" {>= "2.0.2"}
   "odoc" {with-doc}
 ]
 build: [
