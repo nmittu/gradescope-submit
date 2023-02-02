@@ -19,7 +19,7 @@
  (name gradescope_submit)
  (synopsis "A small script to submit to Gradescope via GitHub")
  (description "Submits the current git repository to Gradescope")
- (depends (ocaml (>="4.12")) dune (core (>="v0.15.1")) (core_unix (>="v0.15.2")) (cohttp (>="5.0.0")) (cohttp-lwt-unix (>="5.0.0")) (lambdasoup (>="0.7.3")) (toml (>="7.1.0")) (yojson (>="2.0.2")))
+ (depends (ocaml (>="4.12")) dune (core (>="v0.15.1")) (core_unix (>="v0.15.2")) (cohttp (>="5.0.0")) (cohttp-lwt-unix (>="5.0.0")) (lambdasoup (>="0.7.3")) (toml (>="7.1.0")) (yojson (>="2.0.2")) (lwt_ssl (>="1.1.3")))
  (tags
   (topics git gradescope https api)))
 

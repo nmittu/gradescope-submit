@@ -19,6 +19,7 @@ depends: [
   "lambdasoup" {>= "0.7.3"}
   "toml" {>= "7.1.0"}
   "yojson" {>= "2.0.2"}
+  "lwt_ssl" {>= "1.1.3"}
   "odoc" {with-doc}
 ]
 build: [
