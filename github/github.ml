@@ -11,13 +11,11 @@ let get_current_repo () =
   let remote_origin = Core_unix.open_process_in command |> In_channel.input_all in
   let origin_regex =
     Str.regexp
-      "git@github\\.com:\\(.+\\)\\.git\\|https:\\/\\/github\\.com\\/\\(.+\\)\\.git"
+      {|\(git@github\.com:\|https:\/\/github\.com\/\)\(.+\)|}
   in
   assert (Str.string_match origin_regex remote_origin 0);
-  let repo =
-    try Str.matched_group 1 remote_origin with
-    | _ -> Str.matched_group 2 remote_origin
-  in
+  let repo = Str.matched_group 2 remote_origin in
+  let repo = String.chop_suffix_if_exists repo ~suffix:".git" in
   let branch_cmd = "git rev-parse --abbrev-ref HEAD" in
   let branch = Core_unix.open_process_in branch_cmd |> In_channel.input_all in
   match Str.bounded_split (Str.regexp "/") repo 2 with
