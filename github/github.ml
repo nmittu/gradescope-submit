@@ -11,7 +11,7 @@ let get_current_repo () =
   let remote_origin = Core_unix.open_process_in command |> In_channel.input_all in
   let origin_regex =
     Str.regexp
-      {|\([^:]+\):\(github\.com\/\)?\(.+\)|}
+      {|\([^:]+\):\(\/\/github\.com\/\)?\(.+\)|}
   in
   assert (Str.string_match origin_regex remote_origin 0);
   let repo = Str.matched_group 3 remote_origin in
