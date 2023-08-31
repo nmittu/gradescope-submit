@@ -159,7 +159,7 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
   let lwt =
     (* Get CSRF token from here *)
     let url = sprintf "https://www.gradescope.com/courses/%d" config.course_id in
-    let* cookies, _, body =
+    let* cookies, resp, body =
       req_with_cookies
         ~cookies:t
         ~headers:
@@ -169,6 +169,16 @@ let gradescope_submit t ~(git : Github.t) ~(config : Config.t) =
         (Uri.of_string url)
     in
     let* body_str = Body.to_string body in
+    let _ =
+      match resp.status with
+      | #Code.success_status -> ()
+      | `Code code when Code.is_success code -> ()
+      | _ ->
+        sprintf
+          "failed to get the CSRF token for course %d, is the course available?"
+          config.course_id
+        |> failwith
+    in
     let open Soup in
     let document = parse body_str in
     let csrf = document $ "meta[name=csrf-token]" |> R.attribute "content" in
