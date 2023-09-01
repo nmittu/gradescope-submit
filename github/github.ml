@@ -7,7 +7,7 @@ type t =
   }
 
 let get_current_repo () =
-  let command = "git config --get remote.origin.url" in
+  let command = "git remote get-url origin" in
   let remote_origin = Core_unix.open_process_in command |> In_channel.input_all in
   let origin_regex =
     Str.regexp
